@@ -1,0 +1,364 @@
+{
+  "info": {
+    "name": "Clothing Store Billing System API",
+    "description": "Complete API collection for clothing store billing system with authentication, products, sales, and reports",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"owner\",\n  \"password\": \"owner123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response.token) {",
+                  "  pm.environment.set('jwt_token', response.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser\",\n  \"password\": \"password123\",\n  \"role\": \"CASHIER\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/products?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/products/:id",
+              "host": ["{{base_url}}"],
+              "path": ["products", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cotton T-Shirt\",\n  \"description\": \"Comfortable cotton t-shirt\",\n  \"price\": 299.99,\n  \"category\": \"SHIRTS\",\n  \"size\": \"M\",\n  \"color\": \"Blue\",\n  \"stockQuantity\": 50,\n  \"minStockLevel\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": ["{{base_url}}"],
+              "path": ["products"]
+            }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 249.99,\n  \"stockQuantity\": 45\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/:id",
+              "host": ["{{base_url}}"],
+              "path": ["products", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/products/:id",
+              "host": ["{{base_url}}"],
+              "path": ["products", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales",
+      "item": [
+        {
+          "name": "List Sales",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sales?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["sales"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sale by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sales/:id",
+              "host": ["{{base_url}}"],
+              "path": ["sales", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Sale",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"1234567890\",\n  \"items\": [\n    {\n      \"productId\": \"product_id_here\",\n      \"qty\": 2,\n      \"price\": 299.99\n    }\n  ],\n  \"discount\": 0,\n  \"status\": \"PAID\",\n  \"paymentMethod\": \"CASH\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/sales",
+              "host": ["{{base_url}}"],
+              "path": ["sales"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Sales Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/sales?startDate=2024-01-01&endDate=2024-12-31&groupBy=month",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "sales"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                },
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Top Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/top-products?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "top-products"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Low Stock Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/low-stock?threshold=10",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "low-stock"],
+              "query": [
+                {
+                  "key": "threshold",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/health",
+              "host": ["localhost:3000"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "API Info",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/",
+              "host": ["localhost:3000"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

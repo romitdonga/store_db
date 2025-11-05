@@ -1,0 +1,29 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+exports.login = async (username, password) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
+      throw new Error('Invalid credentials');
+    }
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    return { token, user: { id: user.id, username: user.username, role: user.role } };
+  } catch (err) {
+    throw err; // Handled by controller
+  }
+};
+
+exports.register = async (data, requesterRole) => {
+  if (requesterRole !== 'OWNER') throw new Error('Only owners can register');
+  const hashed = await bcrypt.hash(data.password, 10);
+  return prisma.user.create({ 
+    data: { 
+      ...data, 
+      passwordHash: hashed,
+      role: data.role || 'EMPLOYEE'
+    } 
+  });
+};

@@ -1,0 +1,462 @@
+Backend Development Roadmap: Node.js/Express REST API for Clothing Store Billing System (Phase 1 Demo server)
+Executive Summary
+This document provides a complete, step-by-step roadmap for building a secure, scalable RESTful API backend using Node.js, Express.js, PostgreSQL by render's hosting, and JWT authentication. The system supports a clothing store's core operations: user management (owners/employees), product stock CRUD (owner-only), and sales/billing creation (with auto-stock deduction, invoice numbering, and JSON item storage).
+Key Design Principles
+
+Modularity: Clean separation of concerns (controllers, services, models) for easy maintenance and migration.
+Security: JWT for auth, bcrypt for hashing, role-based access control (RBAC) middleware, input validation (Joi), rate-limiting (express-rate-limit), error handling with try-catch.
+Optimization:
+
+Use Prisma ORM for type-safe DB interactions, migrations, and queries (faster than raw SQL, auto-optimizes indexes).
+Indexes: On users.username, products.category (for search/filter), sales.user_id and sales.purchase_date (for reports).
+JSON for sales.items (efficient for variable bill items; query via PostgreSQL JSON operators if needed).
+Pagination and limits on lists (e.g., GET products/sales) to prevent overload.
+Caching: use Prisma's query caching.
+
+Error Handling: Global middleware for 4xx/5xx responses (JSON: {error, message, statusCode}). Try-catch in all async ops.
+Null/Default Handling: Defaults via Prisma schema (e.g., discount=0). Validate inputs to prevent nulls (e.g., required fields).
+Database Relationships:
+
+sales.user_id → FK to users.id (one-to-many: one user can have many sales).
+sales.items → JSON array with product_id refs to products.id (no strict FK for flexibility; validate existence on create).
+No direct FK from products to sales (use JSON for denormalized quick lookups; audit via triggers if needed later).
+
+API Versioning: All endpoints under /api/v1/ for future-proofing.
+Bill Numbering: Auto-generate BILL-YYYY-NNN (e.g., BILL-2025-001) year-wise via backend logic (count sales in current year +1).
+Assumptions & Additions:
+
+sold_by in sales: Store as user_id (FK) + derive username via join.
+purchase_date: Auto-set to new Date() on create.
+Seed data: On startup, create 1 owner user (creds: username='admin', password='admin123'—change post-deploy).
+
+Tech Stack:
+
+Node.js 20.x, Express 4.x, Prisma 5.x (ORM), jsonwebtoken, bcryptjs, joi (validation), express-rate-limit, cors, helmet (security), morgan (logging).
+DB: PostgreSQL 17.
+Testing: Postman collection (JSON export) for all endpoints.
+
+Post-Deploy Migration: Swap DB URL in .env; no code changes.
+
+If anything's missing (e.g., email verification), flag it during dev—current scope is solid for demo.
+Database Schema (Prisma Format)
+Define in prisma/schema.prisma. Run npx prisma migrate dev to apply.
+prismagenerator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String?  @unique
+  phone        String?
+  passwordHash String   // Renamed for clarity
+  role         Role     @default(EMPLOYEE)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  sales Sales[]
+
+  @@map("users")
+  @@index([username])
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  name            String   // Added: Essential for product identification
+  category        Category @default(SHIRT)
+  stockQuantity   Int      @default(0) @map("stock_quantity")
+  minStockAlert   Int      @default(5) @map("min_stock_alert")
+  costPrice       Decimal  @default(0) @db.Decimal(10, 2) @map("cost_price")
+  sellPrice       Decimal  @default(0) @db.Decimal(10, 2) @map("sell_price")
+  supplier        String?  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // No direct sales relation; referenced via JSON in Sales
+
+  @@map("products")
+  @@index([category])
+  @@index([name]) // For search
+}
+
+model Sales {
+  id            String   @id @default(uuid())
+  billNo        String   @unique @map("bill_no") // Auto-generated
+  customerName  String   @map("customer_name")
+  customerPhone String   @map("customer_phone")
+  totalAmount   Decimal  @default(0) @db.Decimal(10, 2) @map("total_amount")
+  items         Json     // [{productId: uuid, qty: int, price: decimal}]
+  status        SaleStatus @default(PAID)
+  paymentMethod String?  @map("payment_method")
+  purchaseDate  DateTime @default(now()) @map("purchase_date")
+  discount      Int      @default(0)
+  userId        String   @map("user_id")
+  soldBy        String?  // Optional: username snapshot
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sales")
+  @@index([userId])
+  @@index([purchaseDate])
+}
+
+enum Role {
+  OWNER
+  EMPLOYEE
+}
+
+enum Category {
+  SHIRT
+  PANT
+  TSHIRT
+  SHORTS
+  BLAZER
+  JEANS
+  KURTA
+}
+
+enum SaleStatus {
+  PAID
+  PENDING
+}
+
+Relationships in Action: On sales create, fetch user by JWT, set userId; validate items.productId exists in products (service layer check), deduct stockQuantity.
+Defaults/Nulls: Handled in schema (e.g., stock=0). Validation in controllers rejects invalid nulls.
+Optimizations: Prisma auto-generates efficient queries; use include for joins (e.g., sales with user).
+
+API Endpoints Overview
+Base: https://your-render-url.com/api/v1
+
+Method,Endpoint,Description,Auth,Role,Body/Query,Response
+POST,/auth/login,Login & get JWT,No,-,"{username, password}","{token, user: {id, role}} (200)"
+POST,/auth/register,Add employee (owner only),Yes,Owner,"{username, email, phone, password}",{user} (201)
+GET,/products,"List products (paginated, filter by category)",Yes,Any,?category=SHIRT&page=1&limit=20,"[{id, name, ...}] (200)"
+POST,/products,Add product,Yes,Owner,"{name, category, stockQuantity, ...}",{product} (201)
+PUT,/products/:id,"Update product (e.g., restock)",Yes,Owner,"{stockQuantity, ...}",{product} (200)
+DELETE,/products/:id,Delete product,Yes,Owner,-,{} (204)
+GET,/sales,List sales (filter by date/user),Yes,Any,?userId=uuid&startDate=2025-01-01,"[{id, billNo, ...}] (200)"
+POST,/sales,"Create bill (deduct stock, gen billNo)",Yes,Any,"{customerName, customerPhone, items: [{productId, qty, price}], discount, paymentMethod, status}","{sale, message: ""Stock updated""} (201)"
+GET,/sales/:id,Get single sale,Yes,Any,-,{sale} (200)
+GET,/reports/summary,"Dashboard aggregates (total sales, low stock)",Yes,Owner,?period=month,"{totalSales: decimal, lowStock: [...]} (200)"
+
+
+Flow Example (Create Sale):
+Validate JWT → Extract userId/role.
+Validate body (Joi: required fields, items array valid).
+For each item: Fetch product by id → Check qty <= stock → Calc subtotal (qty * price).
+Calc total = sum(subtotals) - discount.
+Gen billNo: Query count of sales where year(purchaseDate)=currentYear → BILL-${year}-${padded count+1}.
+Tx: Update products (stock -= qty), Insert sale (with JSON items, userId).
+If low stock (post-update < minStockAlert), log/notify (console for demo).
+
+
+Error Responses: Always JSON, e.g., {error: "ValidationError", message: "Invalid qty", statusCode: 400}.
+
+Security & Best Practices
+
+JWT: Sign with HS256 (secret in .env), 24h expiry. Refresh? Skip for demo.
+RBAC Middleware: requireRole('owner') checks req.user.role.
+Validation: Joi schemas per endpoint (e.g., products: name.required().min(1)).
+Rate-Limit: 100 req/15min per IP on login; 500/hour on others.
+Headers: CORS (allow * for demo), Helmet for security.
+SQL Injection/XSS: Prisma/Joi handle; sanitize inputs.
+Logging: Morgan for requests; Winston for errors.
+Env Vars: DATABASE_URL, JWT_SECRET, PORT=3000.
+
+Step-by-Step Development Roadmap
+Phase 1: Local Setup & Initialization (Day 1, ~4-6 hours)
+
+Prerequisites:
+
+Install Node.js 20.x (from nodejs.org).
+Install Git, VS Code (with extensions: Prisma, ESLint, Prettier).
+Create GitHub repo (private): git init; git remote add origin <url>; mkdir backend; cd backend.
+
+
+Project Initialization:
+
+npm init -y
+Install deps: npm i express prisma @prisma/client bcryptjs jsonwebtoken joi cors helmet morgan express-rate-limit uuid dotenv
+Dev deps: npm i -D nodemon eslint prettier @types/node
+Create .env:
+textPORT=3000
+DATABASE_URL="postgresql://user:pass@localhost:5432/store_db?schema=public"  // Local Postgres gave by render's hosting
+JWT_SECRET="your-super-secret-key-change-in-prod"
+
+.gitignore: Add node_modules, .env, *.log.
+package.json scripts:
+json"scripts": {
+  "dev": "nodemon src/server.js",
+  "db:push": "prisma db push",
+  "db:migrate": "prisma migrate dev",
+  "db:seed": "node prisma/seed.js",
+  "start": "node src/server.js"
+}
+
+Prisma Setup:
+
+npx prisma init
+Paste schema above into prisma/schema.prisma.
+npx prisma generate (generates client).
+npx prisma db push (sync schema to local DB—no migrations for init).
+Create prisma/seed.js for owner user:
+jsconst { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const prisma = new PrismaClient();
+
+async function main() {
+  const hashed = await bcrypt.hash('admin123', 10);
+  await prisma.user.upsert({
+    where: { username: 'admin' },
+    update: {},
+    create: { username: 'admin', passwordHash: hashed, role: 'OWNER' }
+  });
+  console.log('Seeded owner user');
+}
+
+main().finally(() => prisma.$disconnect());
+
+Run: npm run db:seed
+
+Project Structure (Optimized for Scale):
+textbackend/
+├── src/
+│   ├── controllers/     # Endpoint handlers (authController.js, productController.js, salesController.js)
+│   ├── middleware/      # auth.js (JWT verify), rbac.js (role check), validate.js (Joi), errorHandler.js
+│   ├── services/        # Business logic (authService.js: login/hash; productService.js: CRUD with stock deduct)
+│   ├── routes/          # v1/ (auth.js, products.js, sales.js)
+│   ├── utils/           # helpers (generateBillNo.js, logger.js)
+│   └── server.js        # App entry: express setup, middleware, routes
+├── prisma/
+│   ├── schema.prisma
+│   └── seed.js
+├── .env
+├── package.json
+└── postman_collection.json  # Export later
+
+Basic Server Setup (src/server.js):
+jsrequire('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const { errorHandler } = require('./middleware/errorHandler');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(helmet());
+app.use(cors({ origin: '*' })); // Tighten for prod
+app.use(morgan('combined'));
+app.use(express.json({ limit: '10mb' }));
+app.use(rateLimit({ windowMs: 15*60*1000, max: 100, message: {error: 'Too many requests'} })); // Global, override for login
+
+// Routes
+app.use('/api/v1/auth', require('./routes/auth'));
+app.use('/api/v1/products', require('./routes/products'));
+app.use('/api/v1/sales', require('./routes/sales'));
+app.use('/api/v1/reports', require('./routes/reports'));
+
+// Error handler last
+app.use(errorHandler);
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+Test: npm run dev → Visit http://localhost:3000 (should 404, but no crash).
+
+
+Phase 2: Implement Core Modules (Days 2-4, ~12-18 hours)
+Focus: Auth first, then Products, Sales, Reports. Use async/await, try-catch everywhere.
+
+Authentication Module (src/services/authService.js, src/controllers/authController.js, src/middleware/auth.js):
+
+Service:
+jsconst bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+exports.login = async (username, password) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
+      throw new Error('Invalid credentials');
+    }
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    return { token, user: { id: user.id, username: user.username, role: user.role } };
+  } catch (err) {
+    throw err; // Handled by controller
+  }
+};
+
+exports.register = async (data, requesterRole) => {
+  if (requesterRole !== 'OWNER') throw new Error('Only owners can register');
+  const hashed = await bcrypt.hash(data.password, 10);
+  return prisma.user.create({ data: { ...data, passwordHash: hashed } });
+};
+
+Middleware (src/middleware/auth.js):
+jsconst jwt = require('jsonwebtoken');
+module.exports = (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'No token', statusCode: 401 });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token', statusCode: 401 });
+  }
+};
+
+RBAC (src/middleware/rbac.js):
+jsmodule.exports = (role) => (req, res, next) => {
+  if (req.user.role !== role) return res.status(403).json({ error: 'Insufficient role', statusCode: 403 });
+  next();
+};
+
+Controller & Route (src/controllers/authController.js, src/routes/auth.js):
+
+Use Joi: const schema = Joi.object({ username: Joi.string().required(), password: Joi.string().required() });
+POST /login: Validate → Service.login → res.json(200).
+POST /register: Auth middleware + rbac('OWNER') → Validate → Service.register → res.json(201).
+
+
+Test Locally: npm run dev. Use Postman: POST localhost:3000/api/v1/auth/login {username:'admin', password:'admin123'} → Get token. Unauthorized calls should 401.
+
+
+Products CRUD (Similar structure: service for Prisma ops, controller for validation/response).
+
+Service (src/services/productService.js):
+
+List: prisma.product.findMany({ where: { category: query.category }, skip, take }); (paginate).
+Create/Update: Validate stock >=0, minAlert >0; updateAt = now().
+Delete: Soft-delete? Hard for demo: prisma.product.delete({ where: { id } }).
+
+
+Endpoints: Auth + RBAC('OWNER') for POST/PUT/DELETE; Auth only for GET.
+Optimization: Add select to queries (e.g., exclude updatedAt if not needed).
+Test: POST product → GET list (filter ?category=SHIRT) → Verify in psql: SELECT * FROM products;.
+
+
+Sales Creation (src/services/salesService.js):
+
+Core Logic (in try-tx):
+jsexports.createSale = async (data, userId) => {
+  const { items, discount = 0, ...rest } = data;
+  let total = 0;
+  // Validate & calc
+  for (let item of items) {
+    const prod = await prisma.product.findUnique({ where: { id: item.productId } });
+    if (!prod || prod.stockQuantity < item.qty) throw new Error(`Low stock for ${prod?.name}`);
+    total += item.qty * item.price; // Or use prod.sellPrice
+    await prisma.product.update({ where: { id: item.productId }, data: { stockQuantity: { decrement: item.qty } } });
+  }
+  total -= discount;
+  // Gen billNo
+  const year = new Date().getFullYear();
+  const count = await prisma.sales.count({ where: { billNo: { startsWith: `BILL-${year}-` } } });
+  const billNo = `BILL-${year}-${String(count + 1).padStart(3, '0')}`;
+  // Insert
+  return prisma.sales.create({
+    data: { ...rest, billNo, totalAmount: total, items, userId, purchaseDate: new Date(), soldBy: 'Derived from user' }
+  });
+};
+
+Endpoints: POST /sales: Auth (any role) → Validate items array → Service.create → res.json(201).
+GET /sales: Paginate, filter by userId/date.
+Error Handling: Tx rollback on fail (Prisma $transaction).
+Test: Create sale with valid items → Check stock deducted, billNo unique, total calc.
+
+
+Reports (src/services/reportService.js):
+
+Summary: prisma.sales.aggregate({ _sum: { totalAmount: true }, where: { purchaseDate: { gte: startDate } } }) + low stock query.
+RBAC('OWNER') only.
+
+
+Global Error Handler (src/middleware/errorHandler.js):
+jsmodule.exports = (err, req, res, next) => {
+  console.error(err);
+  const status = err.status || 500;
+  res.status(status).json({ error: err.name || 'ServerError', message: err.message, statusCode: status });
+};
+
+Debug Tips:
+
+Logs: Add console.log in services; use prisma.$on('query', e => console.log(e.query)) for SQL.
+Lint: npx eslint . --fix.
+Run: npm run dev; kill with Ctrl+C.
+
+
+Phase 3: Testing & Postman Collection (Day 4, ~2 hours)
+
+Local Testing:
+
+Use Postman: Create collection Store API v1.
+Auth: POST login → Copy token to all headers (Authorization: Bearer {{token}}).
+Tests:
+
+Login: 200, valid token (decode at jwt.io).
+Register: As owner, 201; as employee, 403.
+Products: POST (owner token) → 201; GET → 200 with data; Invalid: 400.
+Sales: POST with items → 201, stock--, billNo gen; Low stock → 400.
+Reports: Owner only → Aggregates match DB.
+
+
+Edge: Invalid JWT → 401; Null fields → 400; Duplicate username → 409 (Prisma throws).
+
+
+Export Postman:
+
+Collection JSON: Include folders (Auth, Products, Sales, Reports). Set variables: {{baseUrl}}=localhost:3000, {{token}}.
+Tests in Postman: pm.test("Status 200", () => pm.response.to.have.status(200));.
+Share: Export as postman_collection.json in repo.
+
+
+DB Verification: psql store_db → \dt (tables), SELECT * FROM users; etc. Check indexes: \d products.
+
+Phase 4: Deploy to Render
+
+Prepare for Deploy:
+Commit: git add .; git commit -m "Initial backend"; git push.
+.env not in repo—use Render dashboard.
+Migrations: Switch to npx prisma migrate dev --name init for prod (git track migrations/).
+
+Render Setup (Free Tier):
+
+Sign up at render.com (GitHub connect).
+New → Web Service → Connect GitHub repo.
+Settings:
+
+Runtime: Node
+Build: npm install
+Start: npm start
+Env Vars: Add DATABASE_URL (Render Postgres: New → PostgreSQL → Free instance → Copy internal URL), JWT_SECRET.
+
+
+Deploy: Auto on push. URL: https://your-app.onrender.com.
+DB: Render creates store_db; Run seed via Render shell: npx prisma db push; npm run db:seed (or add to build script).
+
+
+Post-Deploy Tests:
+
+Update Postman {{baseUrl}} to Render URL.
+Run collection: All pass? Check logs in Render dashboard.
+Debug: If DB connect fail, verify URL format (postgresql://...).
+
+
+Monitoring: Render logs for errors. For prod, add PM2: npm i -g pm2; pm2 start ecosystem.config.js.
+
+Final Notes for Developer
+
+Follow exactly: This ensures optimized, secure code. Total ~800 LOC.
+Time-Savers: Copy-paste snippets; use Prisma docs for queries.
+Issues? Check console/Render logs. Ping for clarifications (e.g., add fields).
+Handover: Repo + Postman + this doc. Local: git clone; npm i; npm run db:push; npm run db:seed; npm run dev.

@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  #RDXXXXXX
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+#  provider = "sqlite"
+#  url      = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String?  @unique
+  phone        String?
+  passwordHash String   // Renamed for clarity
+  role         Role     @default(EMPLOYEE)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  sales Sales[]
+
+  @@map("users")
+  @@index([username])
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  name            String   // Added: Essential for product identification
+  category        Category @default(SHIRT)
+  stockQuantity   Int      @default(0) @map("stock_quantity")
+  minStockAlert   Int      @default(5) @map("min_stock_alert")
+  costPrice       Float    @default(0) @map("cost_price")
+  sellPrice       Float    @default(0) @map("sell_price")
+  supplier        String?  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // No direct sales relation; referenced via JSON in Sales
+
+  @@map("products")
+  @@index([category])
+  @@index([name]) // For search
+}
+
+model Sales {
+  id            String   @id @default(uuid())
+  billNo        String   @unique @map("bill_no") // Auto-generated
+  customerName  String   @map("customer_name")
+  customerPhone String   @map("customer_phone")
+  totalAmount   Float    @default(0) @map("total_amount")
+  items         Json     // [{productId: uuid, qty: int, price: decimal}]
+  status        SaleStatus @default(PAID)
+  paymentMethod String?  @map("payment_method")
+  purchaseDate  DateTime @default(now()) @map("purchase_date")
+  discount      Int      @default(0)
+  userId        String   @map("user_id")
+  soldBy        String?  // Optional: username snapshot
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sales")
+  @@index([userId])
+  @@index([purchaseDate])
+}
+
+enum Role {
+  OWNER
+  EMPLOYEE
+}
+
+enum Category {
+  SHIRT
+  PANT
+  TSHIRT
+  SHORTS
+  BLAZER
+  JEANS
+  KURTA
+}
+
+enum SaleStatus {
+  PAID
+  PENDING
+}
