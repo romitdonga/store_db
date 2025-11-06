@@ -3,13 +3,9 @@ generator client {
 }
 
 datasource db {
-  #RDXXXXXX
   provider = "postgresql"
   url      = env("DATABASE_URL")
-#  provider = "sqlite"
-#  url      = "file:./dev.db"
 }
-
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
