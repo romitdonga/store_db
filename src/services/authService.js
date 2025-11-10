@@ -18,12 +18,17 @@ exports.login = async (username, password) => {
 
 exports.register = async (data, requesterRole) => {
   if (requesterRole !== 'OWNER') throw new Error('Only owners can register');
-  const hashed = await bcrypt.hash(data.password, 10);
-  return prisma.user.create({ 
-    data: { 
-      ...data, 
-      passwordHash: hashed,
-      role: data.role || 'EMPLOYEE'
-    } 
+
+  const { username, email, phone, password, role } = data;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  return prisma.user.create({
+    data: {
+      username,
+      email: email || null,
+      phone: phone || null,
+      passwordHash,
+      role: role === 'OWNER' || role === 'EMPLOYEE' ? role : 'EMPLOYEE'
+    }
   });
 };
