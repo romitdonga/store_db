@@ -1,0 +1,99 @@
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+
+const prisma = new PrismaClient();
+
+async function main() {
+  // Hash a default password for all demo users
+  const passwordHash = await bcrypt.hash('admin123', 10);
+
+  // Users (upsert to avoid duplicates on rerun)
+  const owner = await prisma.user.upsert({
+    where: { username: 'owner' },
+    update: {},
+    create: {
+      username: 'owner',
+      email: 'owner@example.com',
+      phone: '9000000001',
+      passwordHash,
+      role: 'OWNER',
+    },
+  });
+
+  const emp1 = await prisma.user.upsert({
+    where: { username: 'emp1' },
+    update: {},
+    create: {
+      username: 'emp1',
+      email: 'emp1@example.com',
+      phone: '9000000002',
+      passwordHash,
+      role: 'EMPLOYEE',
+    },
+  });
+
+  // Products
+  await prisma.product.createMany({
+    data: [
+      { name: 'Classic White Shirt', category: 'SHIRT', stockQuantity: 50, minStockAlert: 5, costPrice: 8, sellPrice: 15, supplier: 'Alpha Garments' },
+      { name: 'Blue Denim Jeans', category: 'JEANS', stockQuantity: 30, minStockAlert: 3, costPrice: 15, sellPrice: 30, supplier: 'Denim Co' },
+      { name: 'Black T-Shirt', category: 'TSHIRT', stockQuantity: 80, minStockAlert: 10, costPrice: 5, sellPrice: 12, supplier: 'CottonHub' },
+      { name: 'Formal Blazer', category: 'BLAZER', stockQuantity: 10, minStockAlert: 2, costPrice: 35, sellPrice: 70, supplier: 'Elite Wear' },
+      { name: 'Summer Shorts', category: 'SHORTS', stockQuantity: 40, minStockAlert: 5, costPrice: 6, sellPrice: 14, supplier: 'Cool Cloth' },
+      { name: 'Casual Kurta', category: 'KURTA', stockQuantity: 25, minStockAlert: 4, costPrice: 12, sellPrice: 25, supplier: 'Ethnic Arts' },
+      { name: 'Formal Pant', category: 'PANT', stockQuantity: 35, minStockAlert: 5, costPrice: 10, sellPrice: 22, supplier: 'TailorMade' },
+    ],
+    skipDuplicates: true,
+  });
+
+  // Fetch a few products to build a sales items array
+  const products = await prisma.product.findMany({ take: 3, orderBy: { createdAt: 'asc' } });
+
+  // Sample Sales for owner and emp1
+  const sale1 = await prisma.sales.create({
+    data: {
+      billNo: 'BILL-1001',
+      customerName: 'Rahul Singh',
+      customerPhone: '9800000001',
+      totalAmount: 27, // 2x T-Shirt(12) + 1x Shorts(14) with discount 11? tweak as needed
+      status: 'PAID',
+      paymentMethod: 'CASH',
+      discount: 1,
+      userId: owner.id,
+      soldBy: 'owner',
+      items: [
+        { productId: products[0]?.id, qty: 1, price: products[0]?.sellPrice ?? 12 },
+        { productId: products[1]?.id, qty: 1, price: products[1]?.sellPrice ?? 14 },
+      ],
+    },
+  });
+
+  const sale2 = await prisma.sales.create({
+    data: {
+      billNo: 'BILL-1002',
+      customerName: 'Aman Verma',
+      customerPhone: '9800000002',
+      totalAmount: 42,
+      status: 'PAID',
+      paymentMethod: 'CARD',
+      discount: 0,
+      userId: emp1.id,
+      soldBy: 'emp1',
+      items: [
+        { productId: products[0]?.id, qty: 2, price: products[0]?.sellPrice ?? 12 },
+        { productId: products[2]?.id, qty: 1, price: products[2]?.sellPrice ?? 18 },
+      ],
+    },
+  });
+
+  console.log('Seeded:', { users: [owner.username, emp1.username], sales: [sale1.billNo, sale2.billNo] });
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
