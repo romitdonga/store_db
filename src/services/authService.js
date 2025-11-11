@@ -6,13 +6,19 @@ const prisma = new PrismaClient();
 exports.login = async (username, password) => {
   try {
     const user = await prisma.user.findUnique({ where: { username } });
-    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new Error('Invalid credentials');
     }
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    return { token, user: { id: user.id, username: user.username, role: user.role } };
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    const { passwordHash, ...userData } = user;
+    return { token, user: userData };
   } catch (err) {
-    throw err; // Handled by controller
+    throw err;
   }
 };
 
