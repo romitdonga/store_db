@@ -13,6 +13,7 @@ model User {
   phone        String?
   passwordHash String   // Renamed for clarity
   role         Role     @default(EMPLOYEE)
+  refreshToken String?  @map("refresh_token") // Store refresh token
   createdAt    DateTime @default(now()) @map("created_at")
 
   sales Sales[]

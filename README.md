@@ -41,7 +41,9 @@ npm run dev
 # Production mode
 npm start
 ```
-
+# Postgresql database watch for (see live database)
+npx prisma studio  
+```
 ### 5. Verify Server is Running
 - Health Check: http://localhost:3000/health
 - API Base URL: http://localhost:3000/api

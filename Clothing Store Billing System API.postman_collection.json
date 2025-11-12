@@ -11,6 +11,68 @@
 			"name": "Authentication",
 			"item": [
 				{
+					"name": "Refesh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const response = pm.response.json();\r",
+									"console.log(\"Token in response:\", response.refreshToken);\r",
+									"\r",
+									"if (response.refreshToken) {\r",
+									"pm.collectionVariables.set('jwt_refreshToken', response.refreshToken);\r",
+									"pm.environment.set('jwt_refreshToken', response.refreshToken);\r",
+									"console.log('Set jwt_refreshToken in both environment and collection');\r",
+									"\r",
+									"  console.log(\"Token saved to environment:\", response.refreshToken);\r",
+									"} else {\r",
+									"  console.log(\"No token found in response.\");\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_refreshToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n   \"refreshToken\": \"{{jwt_refreshToken}}\" \r\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Login",
 					"event": [
 						{
@@ -18,14 +80,24 @@
 							"script": {
 								"exec": [
 									"const response = pm.response.json();",
-									"console.log(\"Token in response:\", response.token);",
+									"console.log(\"Token in response:\", response.accessToken);",
 									"",
-									"if (response.token) {",
-									"pm.collectionVariables.set('jwt_token', response.token);",
-									"pm.environment.set('jwt_token', response.token);",
+									"if (response.accessToken) {",
+									"pm.collectionVariables.set('jwt_token', response.accessToken);",
+									"pm.environment.set('jwt_token', response.accessToken);",
+									"",
 									"console.log('Set jwt_token in both environment and collection');",
 									"",
-									"  console.log(\"Token saved to environment:\", response.token);",
+									"  console.log(\"Token saved to environment:\", response.accessToken);",
+									"} else {",
+									"  console.log(\"No token found in response.\");",
+									"}",
+									"if (response.refreshToken) {",
+									"pm.collectionVariables.set('jwt_refreshToken', response.refreshToken);",
+									"pm.environment.set('jwt_refreshToken', response.refreshToken);",
+									"console.log('Set jwt_refreshToken in both environment and collection');",
+									"",
+									"  console.log(\"Token saved to environment:\", response.refreshToken);",
 									"} else {",
 									"  console.log(\"No token found in response.\");",
 									"}",
@@ -85,7 +157,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"username\": \"rdx\",\n  \"password\": \"rdx2588\",\n  \"role\": \"CASHIER\"\n}"
+							"raw": "{\n  \"username\": \"rdx\",\n  \"password\": \"rdx2588\",\n  \"role\": \"EMPLOYEE\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/register",
@@ -111,7 +183,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/products?page=1&limit=10",
+							"raw": "{{base_url}}/products?page=1&limit=10&search=formal",
 							"host": [
 								"{{base_url}}"
 							],
@@ -126,6 +198,10 @@
 								{
 									"key": "limit",
 									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "formal"
 								}
 							]
 						}
@@ -307,7 +383,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"customerName\": \"JohnR RDoe\",\n  \"customerPhone\": \"1234567890\",\n  \"items\": [\n    {\n      \"productId\": \"2fbece8a-169c-4eb4-b884-09c6c0b2bebb\",\n      \"qty\": 3,\n      \"price\": 299.99\n    }\n  ],\n  \"discount\": 50,\n  \"status\": \"PAID\",\n  \"paymentMethod\": \"CASH\"\n}"
+							"raw": "{\n  \"customerName\": \"Parth Dixit\",\n  \"customerPhone\": \"7458695742\",\n  \"items\": [\n    {\n      \"productId\": \"4baee932-2dbb-46fb-b2a2-7e647501ff22\",\n      \"qty\": 5,\n      \"price\": 15\n    }\n  ],\n  \"discount\": 0,\n  \"status\": \"PAID\",\n  \"paymentMethod\": \"UPI\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/sales",
@@ -350,7 +426,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/reports/sales?startDate=2024-01-01&endDate=2024-12-31&groupBy=month",
+							"raw": "{{base_url}}/reports/sales?startDate=2024-01-01&endDate=2025-12-31&groupBy=month",
 							"host": [
 								"{{base_url}}"
 							],
@@ -365,7 +441,7 @@
 								},
 								{
 									"key": "endDate",
-									"value": "2024-12-31"
+									"value": "2025-12-31"
 								},
 								{
 									"key": "groupBy",
@@ -406,7 +482,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/reports/low-stock?threshold=10",
+							"raw": "{{base_url}}/reports/low-stock?threshold=2",
 							"host": [
 								"{{base_url}}"
 							],
@@ -417,7 +493,7 @@
 							"query": [
 								{
 									"key": "threshold",
-									"value": "10"
+									"value": "2"
 								}
 							]
 						}
@@ -473,11 +549,35 @@
 		"bearer": [
 			{
 				"key": "token",
-				"value": "{{jwt_token}}",
+				"value": "{{jwt_token}} ",
 				"type": "string"
 			}
 		]
 	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
 	"variable": [
 		{
 			"key": "base_url",
@@ -485,6 +585,13 @@
 		},
 		{
 			"key": "jwt_token",
+			"value": ""
+		},
+		{
+			"key": "jwt_refreshToken",
+			"value": ""
+		},
+		{
 			"value": ""
 		}
 	]
