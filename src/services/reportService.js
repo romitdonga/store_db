@@ -174,7 +174,7 @@ exports.getLowStockProducts = async (threshold = 10) => {
       name: true,
       category: true,
       stockQuantity: true,
-      price: true
+      costPrice: true
     }
   });
 };
