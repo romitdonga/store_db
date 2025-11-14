@@ -23,9 +23,9 @@ const updateProductSchema = Joi.object({
 
 exports.listProducts = async (req, res, next) => {
   try {
-    const { category, search, page = 1, limit = 20 } = req.query;
+    const { category, search, sortBy = "createdAt", order = "desc", page = 1, limit = 20 } = req.query;
     const result = await productService.listProducts(
-      { category, search },
+      { category, search, sortBy, order },
       { page: parseInt(page), limit: parseInt(limit) }
     );
     res.json(result);

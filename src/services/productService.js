@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 exports.listProducts = async (filters = {}, pagination = {}) => {
-  const { category, search } = filters;
+  const { category, search, sortBy = "createdAt", order = "desc" } = filters;
   const { page = 1, limit = 20 } = pagination;
   const skip = (page - 1) * limit;
 
@@ -15,13 +15,14 @@ exports.listProducts = async (filters = {}, pagination = {}) => {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { [sortBy]: order },
     }),
     prisma.product.count({ where })
   ]);
 
   return {
     products,
+    sort: { sortBy, order },
     pagination: {
       page,
       limit,
