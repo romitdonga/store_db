@@ -83,6 +83,21 @@
               "path": ["auth", "register"]
             }
           }
+        },
+        {
+          "name": "Search Customers by Phone Prefix",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/sales/search/phone?prefix=98&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["sales", "search", "phone"],
+              "query": [
+                { "key": "prefix", "value": "98" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
         }
       ]
     },
@@ -247,7 +262,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"1234567890\",\n  \"items\": [\n    {\n      \"productId\": \"product_id_here\",\n      \"qty\": 2,\n      \"price\": 299.99\n    }\n  ],\n  \"discount\": 0,\n  \"status\": \"PAID\",\n  \"paymentMethod\": \"CASH\"\n}"
+              "raw": "{\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"9874562345\",\n  \"items\": [\n    {\n      \"productId\": \"product_id_here\",\n      \"qty\": 2,\n      \"price\": 299.99\n    }\n  ],\n  \"discount\": 0,\n  \"status\": \"PAID\",\n  \"paymentMethod\": \"CASH\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/sales",

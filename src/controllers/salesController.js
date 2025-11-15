@@ -9,7 +9,7 @@ const itemSchema = Joi.object({
 
 const createSaleSchema = Joi.object({
   customerName: Joi.string().required(),
-  customerPhone: Joi.string().required(),
+  customerPhone: Joi.string().pattern(/^[6-9][0-9]{9}$/).required(),
   items: Joi.array().items(itemSchema).min(1).required(),
   discount: Joi.number().min(0).default(0),
   status: Joi.string().valid('PAID', 'PENDING').default('PAID'),
@@ -22,6 +22,11 @@ const listSalesSchema = Joi.object({
   endDate: Joi.date().optional(),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20)
+});
+
+const phoneSearchSchema = Joi.object({
+  prefix: Joi.string().pattern(/^[6-9][0-9]{2,}$/).required(),
+  limit: Joi.number().integer().min(1).max(50).default(10)
 });
 
 exports.createSale = async (req, res, next) => {
@@ -69,6 +74,20 @@ exports.getSaleById = async (req, res, next) => {
       return res.status(404).json({ error: 'NotFound', message: 'Sale not found', statusCode: 404 });
     }
     res.json(sale);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.searchCustomersByPhonePrefix = async (req, res, next) => {
+  try {
+    const { error, value } = phoneSearchSchema.validate(req.query);
+    if (error) {
+      return res.status(400).json({ error: 'ValidationError', message: error.details[0].message, statusCode: 400 });
+    }
+
+    const results = await salesService.searchCustomersByPhonePrefix(value.prefix, value.limit);
+    res.json({ results });
   } catch (err) {
     next(err);
   }
