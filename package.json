@@ -13,10 +13,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "echo \"# Clothing Store Billing System API",
   "dependencies": {
     "@faker-js/faker": "^10.1.0",
     "@prisma/client": "^6.19.0",
+    "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -26,6 +27,7 @@
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
     "prisma": "^6.18.0",
     "uuid": "^13.0.0"
   },

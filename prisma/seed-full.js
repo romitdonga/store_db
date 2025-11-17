@@ -1,4 +1,4 @@
-// seed-full.js
+// seed_demo.js
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const { faker } = require('@faker-js/faker');
@@ -16,12 +16,27 @@ function generateBillNoForYear(year) {
     return bill;
 }
 
-// --- Random date between two ---
+function safeLog(msg) {
+    console.log(`⚠️ ${msg}`);
+}
+
+async function safeCreate(model, data, uniqueName = "") {
+    try {
+        return await prisma[model].create({ data });
+    } catch (err) {
+        if (err.code === "P2002") {
+            safeLog(`Duplicate skipped: ${uniqueName}`);
+            return null;
+        }
+        throw err;
+    }
+}
+
 function randomDate(start, end) {
     return faker.date.between({ from: start, to: end });
 }
 
-// --- Generate realistic products ---
+// ---------------------- Product Generator -----------------------
 function generateProduct(category) {
     const productNames = {
         SHIRT: ['Cotton Shirt', 'Formal Shirt', 'Casual Check Shirt', 'Linen Shirt', 'Denim Shirt', 'Flannel Shirt', 'Striped Shirt'],
@@ -50,127 +65,87 @@ function generateProduct(category) {
     };
 }
 
-// --- Generate fake sale items ---
 function generateSaleItems(products) {
     const count = faker.number.int({ min: 1, max: 5 });
     const selected = faker.helpers.arrayElements(products, count);
     let total = 0;
+
     const items = selected.map((p) => {
         const qty = faker.number.int({ min: 1, max: 4 });
         const price = p.sellPrice;
         total += qty * price;
         return { productId: p.id, qty, price };
     });
+
     return { items, total };
 }
 
-// --- Main Seeder ---
-async function main() {
-    console.log('🌱 Starting full database seeding...');
-
-    // Create Employees
-    const employees = [];
-    for (let i = 1; i <= 3; i++) {
-        const hashed = await bcrypt.hash(`employee${i}123`, 10);
-        const employee = await prisma.user.create({
-            data: {
-                username: `employee${i}`,
-                email: `employee${i}@store.com`,
-                phone: genIndianPhone(),
-                passwordHash: hashed,
-                role: 'EMPLOYEE',
-            },
-        });
-        employees.push(employee);
+function genIndianPhone(prefix) {
+    let base = prefix || String(faker.number.int({ min: 6, max: 9 }));
+    while (base.length < 10) {
+        base += String(faker.number.int({ min: 0, max: 9 }));
     }
+    return base.slice(0, 10);
+}
 
-    // Create Products
+// ======================= MAIN SEEDER ============================
+async function main() {
+    console.log("� Starting safe database seeding...");
+
+    // ----------------- PRODUCTS -----------------
     const products = [];
     for (const category of categories) {
         for (let i = 0; i < 6; i++) {
-            const p = await prisma.product.create({
-                data: generateProduct(category),
-            });
-            products.push(p);
+            const product = await safeCreate("product", generateProduct(category), "product name");
+            if (product) products.push(product);
         }
     }
-    console.log(`🧺 Created ${products.length} products.`);
+    console.log(`✔️ Created ${products.length} products.`);
 
-    // Create Sales (200+)
+    // ---------------- USERS ---------------- (existing users will be used)
     const users = await prisma.user.findMany();
-    for (let i = 0; i < 220; i++) {
-        const { items, total } = generateSaleItems(products);
-        const user = faker.helpers.arrayElement(users);
-        const discount = faker.number.int({ min: 0, max: 10 });
-        const totalAfterDiscount = total - (total * discount) / 100;
-        const purchaseDate = randomDate('2024-01-01', '2025-11-01');
-        const billNo = generateBillNoForYear(purchaseDate.getFullYear());
-        await prisma.sales.create({
-            data: {
-                billNo,
-                customerName: faker.person.fullName(),
-                customerPhone: genIndianPhone(),
-                totalAmount: totalAfterDiscount,
-                items,
-                status: faker.helpers.arrayElement(saleStatuses),
-                paymentMethod: faker.helpers.arrayElement(paymentMethods),
-                purchaseDate,
-                discount,
-                userId: user.id,
-                soldBy: user.username,
-            },
-        });
+    if (users.length === 0) {
+        console.log("❌ No users found. Create seed users first.");
+        return;
     }
 
-    for (let i = 0; i < 25; i++) {
-        const { items, total } = generateSaleItems(products);
-        const user = faker.helpers.arrayElement(users);
-        const discount = faker.number.int({ min: 0, max: 10 });
-        const totalAfterDiscount = total - (total * discount) / 100;
-        const purchaseDate = randomDate('2024-01-01', '2025-11-01');
-        const billNo = generateBillNoForYear(purchaseDate.getFullYear());
-        await prisma.sales.create({
-            data: {
-                billNo,
-                customerName: faker.person.fullName(),
-                customerPhone: genIndianPhone('980'),
-                totalAmount: totalAfterDiscount,
-                items,
-                status: faker.helpers.arrayElement(saleStatuses),
-                paymentMethod: faker.helpers.arrayElement(paymentMethods),
-                purchaseDate,
-                discount,
-                userId: user.id,
-                soldBy: user.username,
-            },
-        });
+    // ----------------- SALES GENERATION FUNCTION -----------------
+    async function createSales(count, prefix) {
+        for (let i = 0; i < count; i++) {
+            const { items, total } = generateSaleItems(products);
+            const user = faker.helpers.arrayElement(users);
+
+            const discount = faker.number.int({ min: 0, max: 10 });
+            const totalAfterDiscount = total - (total * discount) / 100;
+            const purchaseDate = randomDate('2024-01-01', '2025-11-01');
+
+            const billNo = generateBillNoForYear(purchaseDate.getFullYear());
+
+            await safeCreate(
+                "sales",
+                {
+                    billNo,
+                    customerName: faker.person.fullName(),
+                    customerPhone: genIndianPhone(prefix),
+                    totalAmount: totalAfterDiscount,
+                    items,
+                    status: faker.helpers.arrayElement(saleStatuses),
+                    paymentMethod: faker.helpers.arrayElement(paymentMethods),
+                    purchaseDate,
+                    discount,
+                    userId: user.id,
+                    soldBy: user.username,
+                },
+                billNo
+            );
+        }
     }
 
-    for (let i = 0; i < 25; i++) {
-        const { items, total } = generateSaleItems(products);
-        const user = faker.helpers.arrayElement(users);
-        const discount = faker.number.int({ min: 0, max: 10 });
-        const totalAfterDiscount = total - (total * discount) / 100;
-        const purchaseDate = randomDate('2024-01-01', '2025-11-01');
-        const billNo = generateBillNoForYear(purchaseDate.getFullYear());
-        await prisma.sales.create({
-            data: {
-                billNo,
-                customerName: faker.person.fullName(),
-                customerPhone: genIndianPhone('987'),
-                totalAmount: totalAfterDiscount,
-                items,
-                status: faker.helpers.arrayElement(saleStatuses),
-                paymentMethod: faker.helpers.arrayElement(paymentMethods),
-                purchaseDate,
-                discount,
-                userId: user.id,
-                soldBy: user.username,
-            },
-        });
-    }
+    await createSales(220);
+    await createSales(25, "980");
+    await createSales(25, "987");
 
-    console.log('✅ Seeded 3 employees, 40 products, and 270+ sales.');
+    console.log("� Successfully seeded products + 270+ safe sales entries!");
 }
 
 main()
@@ -181,10 +156,3 @@ main()
     .finally(async () => {
         await prisma.$disconnect();
     });
-function genIndianPhone(prefix) {
-    let base = prefix || String(faker.number.int({ min: 6, max: 9 }));
-    while (base.length < 10) {
-        base += String(faker.number.int({ min: 0, max: 9 }));
-    }
-    return base.slice(0, 10);
-}
